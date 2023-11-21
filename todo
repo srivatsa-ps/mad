@@ -1,0 +1,193 @@
+
+1. Update your `pubspec.yaml` file with the necessary dependencies:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  cloud_firestore: ^3.2.2
+```
+
+Run `flutter pub get` to fetch the dependencies.
+1.flutter pub add firebase_core
+2.# Install the CLI if not already done so
+  dart pub global activate flutterfire_cli
+
+  # Run the `configure` command, select a Firebase project and platforms
+  flutterfire configure
+
+2. Create the `Todo` model class:
+
+```dart
+class Todo {
+  String id;
+  String title;
+  bool isCompleted;
+
+  Todo({
+    required this.id,
+    required this.title,
+    required this.isCompleted,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'isCompleted': isCompleted,
+    };
+  }
+
+  factory Todo.fromMap(String id, Map<String, dynamic> map) {
+    return Todo(
+      id: id,
+      title: map['title'],
+      isCompleted: map['isCompleted'],
+    );
+  }
+}
+```
+
+3. Create the `DatabaseHelper` class:
+
+```dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class DatabaseHelper {
+  final CollectionReference _todosCollection =
+      FirebaseFirestore.instance.collection('todos');
+
+  Future<void> insertTodo(Todo todo) async {
+    await _todosCollection.add(todo.toMap());
+  }
+
+  Future<List<Todo>> getTodos() async {
+    QuerySnapshot<Map<String, dynamic>> querySnapshot =
+        await _todosCollection.get();
+    return querySnapshot.docs
+        .map((doc) => Todo.fromMap(doc.id, doc.data()!))
+        .toList();
+  }
+
+  Future<void> updateTodo(Todo todo) async {
+    await _todosCollection.doc(todo.id).update(todo.toMap());
+  }
+
+  Future<void> deleteTodo(String id) async {
+    await _todosCollection.doc(id).delete();
+  }
+}
+```
+
+4. Create the `TodoApp` widget:
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: TodoApp(),
+    );
+  }
+}
+
+class TodoApp extends StatefulWidget {
+  @override
+  _TodoAppState createState() => _TodoAppState();
+}
+
+class _TodoAppState extends State<TodoApp> {
+  TextEditingController _todoController = TextEditingController();
+  List<Todo> _todos = [];
+  DatabaseHelper _databaseHelper = DatabaseHelper();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTodos();
+  }
+
+  _loadTodos() async {
+    List<Todo> todos = await _databaseHelper.getTodos();
+    setState(() {
+      _todos = todos;
+    });
+  }
+
+  _addTodo() async {
+    String title = _todoController.text.trim();
+    if (title.isNotEmpty) {
+      Todo newTodo = Todo(id: '', title: title, isCompleted: false);
+      await _databaseHelper.insertTodo(newTodo);
+      _loadTodos();
+      _todoController.clear();
+    }
+  }
+
+  _toggleTodo(Todo todo) async {
+    todo.isCompleted = !todo.isCompleted;
+    await _databaseHelper.updateTodo(todo);
+    _loadTodos();
+  }
+
+  _deleteTodo(String id) async {
+    await _databaseHelper.deleteTodo(id);
+    _loadTodos();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Todo App'),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _todoController,
+                    decoration: InputDecoration(
+                      hintText: 'Enter a task',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.add),
+                  onPressed: _addTodo,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _todos.length,
+              itemBuilder: (context, index) {
+                Todo todo = _todos[index];
+                return ListTile(
+                  title: Text(todo.title),
+                  trailing: Checkbox(
+                    value: todo.isCompleted,
+                    onChanged: () => _toggleTodo(todo),
+                  ),
+                  onLongPress: () => _deleteTodo(todo.id),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+This code provides a simple to-do app using Firebase Cloud Firestore to store and retrieve tasks. Remember to replace placeholder values with your actual Firebase configuration. Additionally, ensure that your Firebase project is properly set up with Firestore enabled.
